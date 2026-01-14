@@ -1,7 +1,3 @@
-Claro, aqui está uma sugestão de README simples e direto, escrito como se fosse você explicando o projeto:
-
----
-
 # Analisador de Imagens com Machine Learning
 
 Fiz esse projeto para estudar como funciona aprendizado de máquina na prática. É um classificador de imagens simples que consegue distinguir se uma foto é de um cachorro ou de um gato usando Python.
