@@ -1,57 +1,101 @@
 import os
-
 import numpy as np
-from skimage.io import imread
-from skimage.transform import resize
-from sklearn.model_selection import train_test_split    
-from sklearn.svm import SVC
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.utils import image_dataset_from_directory
+from tensorflow.keras.preprocessing import image
+
+CAMINHO_DATASET = 'dataset/Images' 
+CAMINHO_MODELO = 'modelo_cachorros.keras' 
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 32
+
+def criar_e_treinar_modelo():
+
+    treino = image_dataset_from_directory(
+        CAMINHO_DATASET, validation_split=0.2, subset="training", seed=123,
+        image_size=IMG_SIZE, batch_size=BATCH_SIZE
+    )
+    validacao = image_dataset_from_directory(
+        CAMINHO_DATASET, validation_split=0.2, subset="validation", seed=123,
+        image_size=IMG_SIZE, batch_size=BATCH_SIZE
+    )
+
+    class_names = treino.class_names
+    print(f"Raças encontradas: {len(class_names)}")
+
+    modelo_base = tf.keras.applications.MobileNetV2(
+        input_shape=(224, 224, 3), include_top=False, weights='imagenet'
+    )
+    modelo_base.trainable = False
+
+    modelo = models.Sequential([
+        layers.Rescaling(1./127.5, offset=-1, input_shape=(224, 224, 3)),
+        modelo_base,
+        layers.GlobalAveragePooling2D(),
+        layers.Dropout(0.2),
+        layers.Dense(len(class_names), activation='softmax')
+    ])
+
+    modelo.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    parada_rapida = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)
+    modelo.fit(treino, validation_data=validacao, epochs=10, callbacks=[parada_rapida])
+    
+    modelo.save(CAMINHO_MODELO)
+    print(f"Modelo salvo em: {CAMINHO_MODELO}")
+    
+    return modelo, class_names
+
+def carregar_classes():
+   
+    if os.path.exists(CAMINHO_DATASET):
+        return sorted([d for d in os.listdir(CAMINHO_DATASET) if os.path.isdir(os.path.join(CAMINHO_DATASET, d))])
+    return []
+
+def predizer_raca(model, class_names, img_path):
+    if not os.path.exists(img_path):
+        print("imagem nao encontrada")
+        return
+    
+    img = image.load_img(img_path, target_size=IMG_SIZE)
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+
+    predictions = model.predict(img_array)
+    score = tf.nn.softmax(predictions[0])
+
+    raca = class_names[np.argmax(score)]
+    confianca = 100 * np.max(score)
+
+    print(f"--- RESULTADO ---")
+    print(f"Raça: {raca}")
+    print(f"Confiança: {confianca:.2f}%")
+    
+    plt.imshow(img)
+    plt.title(f"{raca} ({confianca:.2f}%)")
+    plt.axis('off')
+    plt.show()
 
 
-DATASET_PATH = "dataset"
-CATEGORIAS = ["gatos", "cachorros"]
-IMG_SIZE = (64,64)
+if __name__ == "__main__":
+    
+    if os.path.exists(CAMINHO_MODELO):
+        print("Modelo encontrado! Carregando...")
+        model = tf.keras.models.load_model(CAMINHO_MODELO)
+        class_names = carregar_classes()
+    else:
+        print("Modelo não encontrado. Vamos treinar do zero.")
+        model, class_names = criar_e_treinar_modelo()
 
-dados = []
-labels = []
-
-for categoria_idx, categoria in enumerate(CATEGORIAS):
-    path = os.path.join(DATASET_PATH, categoria)
-    if not os.path.exists(path):
-        print(f"erro a pasta {path} nao existe")
-        continue
-
-    for img_name in os.listdir(path):
-        img_path = os.path.join(path, img_name)
-        try:
-            img = imread(img_path)
-            img_resized = resize(img, IMG_SIZE, anti_aliasing=True)
-            dados.append(img_resized.flatten())
-            labels.append(categoria_idx)
-        except Exception as e:
-            print(f"erro ao processar a imagem {img_path}: {e}")
-
-dados = np.array(dados)
-labels = np.array(labels)
-
-X_train, X_test, y_train, y_test = train_test_split(dados, labels, test_size=0.2, random_state=42)
-model = SVC(kernel='poly',degree=3)
-model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-
-
-print(f"\nExemplo de teste:")
-image_path = "images (1).jfif"
-
-try:
-    img = imread(image_path)
-    img_resized = resize(img, IMG_SIZE, anti_aliasing=True)
-    img_flattened = img_resized.flatten().reshape(1, -1)
-    prediction = model.predict(img_flattened)
-    categoria_predita = CATEGORIAS[prediction[0]]
-    print(f"A imagem foi classificada como: {categoria_predita}")
-except Exception as e:
-    print(f"erro ao processar a imagem de teste {image_path}: {e}")
-
- 
-
-
+    if model:
+        while True:
+            caminho_img = input("\nDigite o caminho da imagem (ou 'sair' para encerrar): ")
+            if caminho_img.lower() == 'sair':
+                break
+            # Remove aspas caso o usuário copie o caminho como "C:\..."
+            caminho_img = caminho_img.replace('"', '') 
+            predizer_raca(model, class_names, caminho_img)
