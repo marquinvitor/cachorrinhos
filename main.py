@@ -22,8 +22,8 @@ def criar_e_treinar_modelo():
         image_size=IMG_SIZE, batch_size=BATCH_SIZE
     )
 
-    class_names = treino.class_names
-    print(f"Raças encontradas: {len(class_names)}")
+    racas = treino.class_names
+    print(f"Raças encontradas: {len(racas)}")
 
     modelo_base = tf.keras.applications.MobileNetV2(
         input_shape=(224, 224, 3), include_top=False, weights='imagenet'
@@ -35,7 +35,7 @@ def criar_e_treinar_modelo():
         modelo_base,
         layers.GlobalAveragePooling2D(),
         layers.Dropout(0.2),
-        layers.Dense(len(class_names), activation='softmax')
+        layers.Dense(len(racas), activation='softmax')
     ])
 
     modelo.compile(optimizer='adam',
@@ -48,15 +48,14 @@ def criar_e_treinar_modelo():
     modelo.save(CAMINHO_MODELO)
     print(f"Modelo salvo em: {CAMINHO_MODELO}")
     
-    return modelo, class_names
+    return modelo, racas
 
 def carregar_classes():
    
     if os.path.exists(CAMINHO_DATASET):
         return sorted([d for d in os.listdir(CAMINHO_DATASET) if os.path.isdir(os.path.join(CAMINHO_DATASET, d))])
     return []
-
-def predizer_raca(model, class_names, img_path):
+def predizer_raca(model, racas, img_path):
     if not os.path.exists(img_path):
         print("imagem nao encontrada")
         return
@@ -68,7 +67,7 @@ def predizer_raca(model, class_names, img_path):
     predictions = model.predict(img_array)
     score = tf.nn.softmax(predictions[0])
 
-    raca = class_names[np.argmax(score)]
+    raca = racas[np.argmax(score)]
     confianca = 100 * np.max(score)
 
     print(f"--- RESULTADO ---")
@@ -86,10 +85,10 @@ if __name__ == "__main__":
     if os.path.exists(CAMINHO_MODELO):
         print("Modelo encontrado! Carregando...")
         model = tf.keras.models.load_model(CAMINHO_MODELO)
-        class_names = carregar_classes()
+        racas = carregar_classes()
     else:
         print("Modelo não encontrado. Vamos treinar do zero.")
-        model, class_names = criar_e_treinar_modelo()
+        model, racas = criar_e_treinar_modelo()
 
     if model:
         while True:
@@ -98,4 +97,4 @@ if __name__ == "__main__":
                 break
             # Remove aspas caso o usuário copie o caminho como "C:\..."
             caminho_img = caminho_img.replace('"', '') 
-            predizer_raca(model, class_names, caminho_img)
+            predizer_raca(model, racas, caminho_img)
