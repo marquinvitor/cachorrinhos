@@ -55,6 +55,7 @@ def carregar_classes():
     if os.path.exists(CAMINHO_DATASET):
         return sorted([d for d in os.listdir(CAMINHO_DATASET) if os.path.isdir(os.path.join(CAMINHO_DATASET, d))])
     return []
+
 def predizer_raca(model, racas, img_path):
     if not os.path.exists(img_path):
         print("imagem nao encontrada")
@@ -65,13 +66,13 @@ def predizer_raca(model, racas, img_path):
     img_array = np.expand_dims(img_array, axis=0)
 
     predictions = model.predict(img_array)
-    score = tf.nn.softmax(predictions[0])
+    score = predictions[0]
 
     raca = racas[np.argmax(score)]
     confianca = 100 * np.max(score)
 
     print(f"--- RESULTADO ---")
-    print(f"Raça: {raca}")
+    print(f"Raça: {raca.split('-',1)[1]}")
     print(f"Confiança: {confianca:.2f}%")
     
     plt.imshow(img)
@@ -81,20 +82,16 @@ def predizer_raca(model, racas, img_path):
 
 
 if __name__ == "__main__":
-    
+    #carrega modelo treinado caso ja exista um
     if os.path.exists(CAMINHO_MODELO):
-        print("Modelo encontrado! Carregando...")
         model = tf.keras.models.load_model(CAMINHO_MODELO)
         racas = carregar_classes()
     else:
-        print("Modelo não encontrado. Vamos treinar do zero.")
+       #treina um modelo caso nao exista um modelo salvo
         model, racas = criar_e_treinar_modelo()
 
     if model:
         while True:
-            caminho_img = input("\nDigite o caminho da imagem (ou 'sair' para encerrar): ")
-            if caminho_img.lower() == 'sair':
-                break
-            # Remove aspas caso o usuário copie o caminho como "C:\..."
+            caminho_img = input("\ndigite o caminho da imagem: ")
             caminho_img = caminho_img.replace('"', '') 
             predizer_raca(model, racas, caminho_img)
